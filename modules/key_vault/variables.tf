@@ -8,23 +8,8 @@ variable "environment" {
   description = "Environment identifier (dev, prod, etc.)."
 }
 
-variable "location" {
+variable "secret_prefix" {
   type        = string
-  description = "Azure region."
-}
-
-variable "resource_group_name" {
-  type        = string
-  description = "Name of the resource group."
-}
-
-variable "kv_name" {
-  type        = string
-  description = "Optional override for the Key Vault name."
+  description = "Optional override for the Secrets Manager path prefix (e.g., 'myapp/prod')."
   default     = null
-}
-
-variable "tenant_id" {
-  type        = string
-  description = "Azure AD tenant ID for access policies."
 }

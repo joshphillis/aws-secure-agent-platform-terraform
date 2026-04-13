@@ -1,19 +1,19 @@
-output "env_id" {
-  description = "The ID of the Container Apps Environment."
-  value       = azurerm_container_app_environment.this.id
+output "cluster_id" {
+  description = "ARN of the ECS cluster."
+  value       = aws_ecs_cluster.this.id
 }
 
-output "env_name" {
-  description = "The name of the Container Apps Environment."
-  value       = azurerm_container_app_environment.this.name
+output "cluster_name" {
+  description = "Name of the ECS cluster."
+  value       = aws_ecs_cluster.this.name
 }
 
-output "default_domain" {
-  description = "Default domain for the environment."
-  value       = azurerm_container_app_environment.this.default_domain
+output "namespace_id" {
+  description = "ID of the Cloud Map private DNS namespace."
+  value       = aws_service_discovery_private_dns_namespace.this.id
 }
 
-output "domain" {
-  value       = azurerm_container_app_environment.this.default_domain
-  description = "Internal DNS domain of the Container Apps Environment"
+output "namespace_name" {
+  description = "DNS name of the private namespace for service discovery (e.g., secure-agent.dev.local)."
+  value       = aws_service_discovery_private_dns_namespace.this.name
 }

@@ -1,99 +1,77 @@
+data "aws_region" "current" {}
+
+data "aws_vpc" "this" {
+  id = var.vpc_id
+}
+
 locals {
-  name = coalesce(var.openai_name, "${var.project_name}-${var.environment}-aoai")
+  name = "${var.project_name}-${var.environment}-bedrock"
 }
 
-# -----------------------------------------------------------
-# Azure OpenAI Cognitive Account
-# -----------------------------------------------------------
-resource "azurerm_cognitive_account" "this" {
-  name                          = local.name
-  location                      = var.location
-  resource_group_name           = var.resource_group_name
-  kind                          = "OpenAI"
-  sku_name                      = var.openai_sku
-  custom_subdomain_name         = local.name      # required for private endpoint
-  public_network_access_enabled = false            # private-only access
+# ─── Security Group for the Bedrock VPC Endpoint ───────────────────────────────
 
-  identity {
-    type = "SystemAssigned"
+resource "aws_security_group" "bedrock_endpoint" {
+  name   = "${local.name}-sg"
+  vpc_id = var.vpc_id
+
+  ingress {
+    description = "HTTPS from within the VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [data.aws_vpc.this.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {
-    project     = var.project_name
-    environment = var.environment
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
-resource "azurerm_cognitive_deployment" "default" {
-  name                 = var.openai_deployment_default
-  cognitive_account_id = azurerm_cognitive_account.this.id
+# ─── VPC Interface Endpoint for private Bedrock access ─────────────────────────
+# Replaces: azurerm_private_dns_zone + azurerm_private_dns_zone_virtual_network_link
+#           + azurerm_private_endpoint
+# AWS enables private DNS automatically — no separate zone or VNet link required.
+# NOTE: model access must be granted in the AWS Console before invoking models.
 
-  model {
-    format  = "OpenAI"
-    name    = "gpt-4o-mini"
-    version = "2024-07-18"
-  }
-
-  sku {
-    name     = "GlobalStandard"
-    capacity = 10
-  }
-}
-
-# -----------------------------------------------------------
-# Private DNS Zone
-# Must be exactly "privatelink.openai.azure.com"
-# -----------------------------------------------------------
-resource "azurerm_private_dns_zone" "openai" {
-  name                = "privatelink.openai.azure.com"
-  resource_group_name = var.resource_group_name
+resource "aws_vpc_endpoint" "bedrock_runtime" {
+  vpc_id              = var.vpc_id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.bedrock-runtime"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [var.subnet_id]
+  security_group_ids  = [aws_security_group.bedrock_endpoint.id]
+  private_dns_enabled = true
 
   tags = {
-    project     = var.project_name
-    environment = var.environment
+    Name        = "${local.name}-endpoint"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
-# -----------------------------------------------------------
-# VNet Link — links DNS zone to your VNet
-# WITHOUT this, Container Apps can't resolve the endpoint!
-# -----------------------------------------------------------
-resource "azurerm_private_dns_zone_virtual_network_link" "openai" {
-  name                  = "${local.name}-dns-link"
-  resource_group_name   = var.resource_group_name
-  private_dns_zone_name = azurerm_private_dns_zone.openai.name
-  virtual_network_id    = var.vnet_id
-  registration_enabled  = false
+# ─── IAM: allow the app role to invoke the configured Bedrock model ─────────────
+# Replaces: azurerm_cognitive_account API-key auth
 
-  tags = {
-    project     = var.project_name
-    environment = var.environment
-  }
-}
+resource "aws_iam_role_policy" "bedrock_invoke" {
+  name = "${local.name}-invoke"
+  role = var.app_role_name
 
-# -----------------------------------------------------------
-# Private Endpoint — attaches OpenAI to your workload subnet
-# -----------------------------------------------------------
-resource "azurerm_private_endpoint" "openai" {
-  name                = "${local.name}-pe"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  subnet_id           = var.subnet_id
-
-  private_service_connection {
-    name                           = "${local.name}-psc"
-    private_connection_resource_id = azurerm_cognitive_account.this.id
-    subresource_names              = ["account"]
-    is_manual_connection           = false
-  }
-
-  private_dns_zone_group {
-    name                 = "openai-dns-group"
-    private_dns_zone_ids = [azurerm_private_dns_zone.openai.id]
-  }
-
-  tags = {
-    project     = var.project_name
-    environment = var.environment
-  }
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ]
+      Resource = "arn:aws:bedrock:${data.aws_region.current.name}::foundation-model/${var.model_id}"
+    }]
+  })
 }

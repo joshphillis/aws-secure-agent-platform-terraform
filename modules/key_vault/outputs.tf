@@ -1,19 +1,24 @@
-output "id" {
-  description = "The ID of the Key Vault."
-  value       = azurerm_key_vault.this.id
+output "kms_key_arn" {
+  description = "ARN of the KMS key used to encrypt secrets."
+  value       = aws_kms_key.this.arn
 }
 
-output "vault_uri" {
-  description = "The URI of the Key Vault."
-  value       = azurerm_key_vault.this.vault_uri
+output "kms_key_alias" {
+  description = "Alias of the KMS key."
+  value       = aws_kms_alias.this.name
 }
 
-output "identity_id" {
-  description = "The ID of the managed identity for apps."
-  value       = azurerm_user_assigned_identity.app_identity.id
+output "secret_prefix" {
+  description = "Secrets Manager path prefix for this environment."
+  value       = local.name
 }
 
-output "identity_principal_id" {
-  description = "The principal ID of the managed identity."
-  value       = azurerm_user_assigned_identity.app_identity.principal_id
+output "role_arn" {
+  description = "ARN of the IAM role for apps to assume when reading secrets."
+  value       = aws_iam_role.app_role.arn
+}
+
+output "role_name" {
+  description = "Name of the IAM role for apps (used for attaching additional policies)."
+  value       = aws_iam_role.app_role.name
 }

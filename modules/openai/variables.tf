@@ -6,39 +6,23 @@ variable "environment" {
   type = string
 }
 
-variable "location" {
-  type = string
-}
-
-variable "resource_group_name" {
-  type = string
-}
-
-variable "openai_name" {
-  type    = string
-  default = null
-}
-
-variable "openai_sku" {
+variable "vpc_id" {
   type        = string
-  description = "SKU for the Azure OpenAI resource"
-  default     = "S0"
+  description = "ID of the VPC for the Bedrock VPC endpoint and its security group."
 }
 
-# -----------------------------------------------------------
-# NEW — required for private endpoint + DNS
-# -----------------------------------------------------------
 variable "subnet_id" {
   type        = string
-  description = "ID of the subnet to attach the private endpoint to (workload subnet)."
+  description = "ID of the subnet to place the Bedrock VPC endpoint in (workload subnet)."
 }
 
-variable "vnet_id" {
+variable "app_role_name" {
   type        = string
-  description = "ID of the VNet to link the private DNS zone to."
+  description = "Name of the IAM role (from the key_vault module) to attach the Bedrock invoke policy to."
 }
 
-variable "openai_deployment_default" {
+variable "model_id" {
   type        = string
-  description = "Name of the default model deployment."
+  description = "Bedrock foundation model ID to invoke (e.g., anthropic.claude-3-haiku-20240307-v1:0)."
+  default     = "anthropic.claude-3-haiku-20240307-v1:0"
 }

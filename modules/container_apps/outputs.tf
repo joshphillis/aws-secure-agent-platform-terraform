@@ -1,14 +1,14 @@
-output "app_names" {
-  description = "Names of all deployed container apps."
-  value       = [for k, v in azurerm_container_app.apps : v.name]
+output "orchestrator_endpoint" {
+  description = "Public DNS name of the orchestrator ALB."
+  value       = aws_lb.orchestrator.dns_name
 }
 
-output "app_ids" {
-  description = "IDs of all deployed container apps."
-  value       = { for k, v in azurerm_container_app.apps : k => v.id }
+output "worker_service_arns" {
+  description = "Map of worker app name to ECS service ARN."
+  value       = { for k, v in aws_ecs_service.apps : k => v.id }
 }
 
-output "fqdn_map" {
-  description = "Map of app names to their FQDNs."
-  value       = { for k, v in azurerm_container_app.apps : k => v.latest_revision_fqdn }
+output "worker_service_names" {
+  description = "List of deployed worker ECS service names."
+  value       = [for k, v in aws_ecs_service.apps : v.name]
 }

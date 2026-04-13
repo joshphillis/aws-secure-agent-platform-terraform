@@ -1,35 +1,49 @@
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 locals {
-  name = "aoai${var.environment}acr${substr(md5(var.project_name), 0, 4)}"
+  name         = coalesce(var.repository_name, "${var.project_name}-${var.environment}")
+  registry_url = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
 }
 
-resource "azurerm_container_registry" "this" {
-  name                = local.name
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  sku                 = "Basic"
-  admin_enabled       = false
+resource "aws_ecr_repository" "this" {
+  name                 = local.name
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
 
   tags = {
-    project     = var.project_name
-    environment = var.environment
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
-# Managed identity for Container Apps pull
-resource "azurerm_user_assigned_identity" "acr_pull" {
-  name                = "${local.name}-pull-id"
-  location            = var.location
-  resource_group_name = var.resource_group_name
+# IAM role for ECS tasks to pull images from ECR
+resource "aws_iam_role" "ecr_pull" {
+  name = "${local.name}-ecr-pull"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
 
   tags = {
-    project     = var.project_name
-    environment = var.environment
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
-# Assign AcrPull role to the identity
-resource "azurerm_role_assignment" "acr_pull_assignment" {
-  scope                = azurerm_container_registry.this.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_user_assigned_identity.acr_pull.principal_id
+resource "aws_iam_role_policy_attachment" "ecr_pull_readonly" {
+  role       = aws_iam_role.ecr_pull.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }

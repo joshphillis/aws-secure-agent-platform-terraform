@@ -8,9 +8,9 @@ variable "environment" {
   description = "Environment identifier (dev, prod, etc.)."
 }
 
-variable "location" {
+variable "aws_region" {
   type        = string
-  description = "Azure region for all resources."
+  description = "AWS region for all resources (e.g., us-east-1)."
 }
 
 variable "tags" {
@@ -19,9 +19,14 @@ variable "tags" {
   default     = {}
 }
 
-variable "vnet_cidr" {
+variable "vpc_cidr" {
   type        = string
-  description = "CIDR block for the VNet."
+  description = "CIDR block for the VPC."
+}
+
+variable "availability_zone" {
+  type        = string
+  description = "AWS availability zone for subnets (e.g., us-east-1a)."
 }
 
 variable "subnet_cidrs" {
@@ -32,67 +37,40 @@ variable "subnet_cidrs" {
   description = "CIDR blocks for subnets. Both containerapps and workload are required."
 }
 
-variable "log_analytics_workspace_name" {
+variable "log_group_name" {
   type        = string
-  description = "Optional override for Log Analytics workspace name."
+  description = "Optional override for the CloudWatch log group name."
   default     = null
 }
 
-variable "acr_name" {
+variable "repository_name" {
   type        = string
-  description = "Optional override for ACR name."
+  description = "Optional override for the ECR repository name."
   default     = null
 }
 
-variable "acr_sku" {
+variable "secret_prefix" {
   type        = string
-  description = "ACR SKU (Basic, Standard, Premium)."
-  default     = "Basic"
-}
-
-variable "kv_name" {
-  type        = string
-  description = "Optional override for Key Vault name."
+  description = "Optional override for the Secrets Manager path prefix (e.g., 'myapp/prod')."
   default     = null
 }
 
-variable "tenant_id" {
+variable "model_id" {
   type        = string
-  description = "Azure AD tenant ID."
-}
-
-variable "openai_name" {
-  type        = string
-  description = "Optional override for Azure OpenAI resource name."
-  default     = null
-}
-
-variable "openai_sku" {
-  type        = string
-  description = "Azure OpenAI SKU (e.g., S0)."
-  default     = "S0"
-}
-
-variable "openai_deployment_default" {
-  type        = string
-  description = "Default OpenAI deployment name."
-}
-
-variable "openai_api_key" {
-  type        = string
-  description = "Azure OpenAI API key (provided via secrets tfvars)."
+  description = "Bedrock foundation model ID to use (e.g., anthropic.claude-3-haiku-20240307-v1:0)."
+  default     = "anthropic.claude-3-haiku-20240307-v1:0"
 }
 
 variable "apps" {
   type = list(object({
     name         = string
     image        = string
-    cpu          = number
-    memory       = string
+    cpu          = number       # Fargate CPU units (256, 512, 1024, 2048, 4096)
+    memory       = number       # Memory in MiB (512, 1024, 2048, …)
     min_replicas = optional(number, 1)
     max_replicas = optional(number, 3)
     env          = map(string)
-    secrets      = map(string)
+    secrets      = map(string)  # map of env-var name → Secrets Manager ARN
   }))
-  description = "List of container apps (orchestrator + workers)."
+  description = "Worker ECS services to deploy."
 }

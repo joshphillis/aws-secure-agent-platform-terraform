@@ -1,17 +1,39 @@
 locals {
-  name = "${var.project_name}-${var.environment}-cae"
+  name = "${var.project_name}-${var.environment}"
 }
 
-resource "azurerm_container_app_environment" "this" {
-  name                = local.name
-  location            = var.location
-  resource_group_name = var.resource_group_name
+resource "aws_ecs_cluster" "this" {
+  name = "${local.name}-cluster"
 
-  log_analytics_workspace_id = var.log_analytics_id
-  infrastructure_subnet_id   = var.delegated_subnet_id
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
 
   tags = {
-    project     = var.project_name
-    environment = var.environment
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+resource "aws_ecs_cluster_capacity_providers" "this" {
+  cluster_name       = aws_ecs_cluster.this.name
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+
+  default_capacity_provider_strategy {
+    capacity_provider = "FARGATE"
+    weight            = 1
+  }
+}
+
+# Private DNS namespace for service-to-service discovery (equivalent to Container Apps default_domain)
+resource "aws_service_discovery_private_dns_namespace" "this" {
+  name        = "${local.name}.local"
+  description = "Private DNS namespace for ${local.name} services"
+  vpc         = var.vpc_id
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
   }
 }

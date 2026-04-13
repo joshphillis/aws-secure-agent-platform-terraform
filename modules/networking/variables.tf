@@ -8,19 +8,14 @@ variable "environment" {
   description = "Environment identifier (dev, prod, etc.)."
 }
 
-variable "location" {
+variable "availability_zone" {
   type        = string
-  description = "Azure region."
+  description = "AWS availability zone for subnets (e.g., us-east-1a)."
 }
 
-variable "resource_group_name" {
+variable "vpc_cidr" {
   type        = string
-  description = "Name of the resource group."
-}
-
-variable "vnet_cidr" {
-  type        = string
-  description = "CIDR block for the VNet."
+  description = "CIDR block for the VPC."
 }
 
 variable "subnet_cidrs" {

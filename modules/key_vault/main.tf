@@ -1,45 +1,64 @@
 locals {
-  # Short, Azure‑safe Key Vault name (<= 24 chars)
-  # Pattern: kv + project initials + env
-  name = "kv-${var.environment}-${substr(md5(var.project_name), 0, 6)}"
+  name = coalesce(var.secret_prefix, "${var.project_name}/${var.environment}")
 }
 
-resource "azurerm_key_vault" "this" {
-  name                        = local.name
-  location                    = var.location
-  resource_group_name         = var.resource_group_name
-  tenant_id                   = var.tenant_id
-  sku_name                    = "standard"
-
-  soft_delete_retention_days  = 7
-  purge_protection_enabled    = false
+# Customer-managed KMS key for encrypting secrets
+resource "aws_kms_key" "this" {
+  description             = "KMS key for ${var.project_name}-${var.environment} secrets"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
 
   tags = {
-    project     = var.project_name
-    environment = var.environment
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
-# Identity for apps to retrieve secrets
-resource "azurerm_user_assigned_identity" "app_identity" {
-  name                = "${local.name}-id"
-  location            = var.location
-  resource_group_name = var.resource_group_name
+resource "aws_kms_alias" "this" {
+  name          = "alias/${var.project_name}-${var.environment}"
+  target_key_id = aws_kms_key.this.key_id
+}
+
+# IAM role for apps to assume when reading secrets
+resource "aws_iam_role" "app_role" {
+  name = "${var.project_name}-${var.environment}-app-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
 
   tags = {
-    project     = var.project_name
-    environment = var.environment
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
-# Allow identity to read secrets
-resource "azurerm_key_vault_access_policy" "app_policy" {
-  key_vault_id = azurerm_key_vault.this.id
-  tenant_id    = var.tenant_id
-  object_id    = azurerm_user_assigned_identity.app_identity.principal_id
+# Allow the app role to read secrets under the project prefix and decrypt with the KMS key
+resource "aws_iam_role_policy" "secrets_read" {
+  name = "${var.project_name}-${var.environment}-secrets-read"
+  role = aws_iam_role.app_role.id
 
-  secret_permissions = [
-    "Get",
-    "List"
-  ]
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:ListSecrets"
+        ]
+        Resource = "arn:aws:secretsmanager:*:*:secret:${local.name}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = aws_kms_key.this.arn
+      }
+    ]
+  })
 }

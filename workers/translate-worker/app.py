@@ -3,7 +3,8 @@ from pydantic import BaseModel
 from datetime import datetime
 import time
 import os
-from openai import AzureOpenAI
+import json
+import boto3
 
 app = FastAPI()
 
@@ -11,10 +12,9 @@ class TranslateRequest(BaseModel):
     text: str
     target_language: str
 
-client = AzureOpenAI(
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    api_version="2024-02-15-preview"
+client = boto3.client(
+    "bedrock-runtime",
+    endpoint_url=os.getenv("BEDROCK_ENDPOINT"),
 )
 
 @app.get("/health")
@@ -25,25 +25,29 @@ def health():
 def process(request: TranslateRequest):
     start = time.time()
 
-    response = client.chat.completions.create(
-        model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-        messages=[
-            {
-                "role": "system",
-                "content": f"Translate the text into {request.target_language}."
-            },
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 1024,
+        "messages": [
             {"role": "user", "content": request.text}
-        ]
+        ],
+        "system": f"Translate the text into {request.target_language}."
+    }
+
+    response = client.invoke_model(
+        modelId=os.getenv("BEDROCK_MODEL_ID"),
+        body=json.dumps(body),
     )
 
+    response_body = json.loads(response["body"].read())
     latency_ms = int((time.time() - start) * 1000)
 
     return {
         "worker": "translate-worker",
-        "result": response.choices[0].message.content,
-        "model_response": response.dict(),
-        "input_tokens": response.usage.prompt_tokens,
-        "output_tokens": response.usage.completion_tokens,
+        "result": response_body["content"][0]["text"],
+        "model_response": response_body,
+        "input_tokens": response_body["usage"]["input_tokens"],
+        "output_tokens": response_body["usage"]["output_tokens"],
         "latency_ms": latency_ms,
         "timestamp": datetime.utcnow().isoformat()
     }

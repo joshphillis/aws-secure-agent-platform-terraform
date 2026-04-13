@@ -8,11 +8,6 @@ variable "environment" {
   description = "Environment identifier (e.g., dev, prod)."
 }
 
-variable "location" {
-  type        = string
-  description = "Azure region for the resource group."
-}
-
 variable "tags" {
   type        = map(string)
   description = "Common tags applied to all resources."

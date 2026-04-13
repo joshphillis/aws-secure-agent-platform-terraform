@@ -1,16 +1,13 @@
 locals {
-  name = coalesce(var.workspace_name, "${var.project_name}-${var.environment}-law")
+  name = coalesce(var.log_group_name, "/aws/${var.project_name}/${var.environment}")
 }
 
-resource "azurerm_log_analytics_workspace" "this" {
-  name                = local.name
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  sku                 = "PerGB2018"
-  retention_in_days   = var.retention_in_days
+resource "aws_cloudwatch_log_group" "this" {
+  name              = local.name
+  retention_in_days = var.retention_in_days
 
   tags = {
-    project     = var.project_name
-    environment = var.environment
+    Project     = var.project_name
+    Environment = var.environment
   }
 }

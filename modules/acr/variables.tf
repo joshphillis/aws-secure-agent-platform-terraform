@@ -8,24 +8,8 @@ variable "environment" {
   description = "Environment identifier (dev, prod, etc.)."
 }
 
-variable "location" {
+variable "repository_name" {
   type        = string
-  description = "Azure region."
-}
-
-variable "resource_group_name" {
-  type        = string
-  description = "Name of the resource group."
-}
-
-variable "acr_name" {
-  type        = string
-  description = "Optional override for the ACR name."
+  description = "Optional override for the ECR repository name."
   default     = null
-}
-
-variable "sku" {
-  type        = string
-  description = "ACR SKU (Basic, Standard, Premium)."
-  default     = "Basic"
 }

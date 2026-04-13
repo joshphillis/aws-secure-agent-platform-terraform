@@ -11,10 +11,10 @@ WORKER_BASE = os.getenv("WORKER_BASE")
 if not WORKER_BASE:
     raise RuntimeError("WORKER_BASE environment variable is not set")
 
-# Internal DNS domain of the Azure Container Apps environment
-ENVIRONMENT_DOMAIN = os.getenv("ENVIRONMENT_DOMAIN")
-if not ENVIRONMENT_DOMAIN:
-    raise RuntimeError("ENVIRONMENT_DOMAIN environment variable is not set")
+# Cloud Map private DNS namespace for service discovery
+NAMESPACE_NAME = os.getenv("NAMESPACE_NAME")
+if not NAMESPACE_NAME:
+    raise RuntimeError("NAMESPACE_NAME environment variable is not set")
 
 
 # -----------------------------------------------------------
@@ -40,12 +40,12 @@ class TranslateRequest(BaseModel):
 
 
 # -----------------------------------------------------------
-# Helper — builds the correct internal ACA DNS URL
-# Format: http://{project}-{env}-{worker}.{environment_domain}/process
+# Helper — builds the Cloud Map service discovery URL
+# Format: http://{worker_name}.{namespace_name}:8000/process
 # -----------------------------------------------------------
 
 def worker_url(worker_name: str) -> str:
-    return f"https://{WORKER_BASE}-{worker_name}.internal.{ENVIRONMENT_DOMAIN}/process"
+    return f"http://{worker_name}.{NAMESPACE_NAME}:8000/process"
 
 # -----------------------------------------------------------
 # Helper — calls a single worker with retry logic
@@ -75,7 +75,7 @@ async def call_worker(client: httpx.AsyncClient, worker_name: str, payload: dict
 # -----------------------------------------------------------
 @app.get("/health")
 async def health():
-    return {"status": "ok", "worker_base": WORKER_BASE, "environment_domain": ENVIRONMENT_DOMAIN}
+    return {"status": "ok", "worker_base": WORKER_BASE, "namespace_name": NAMESPACE_NAME}
 
 
 # -----------------------------------------------------------
