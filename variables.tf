@@ -26,26 +26,26 @@ variable "vpc_cidr" {
 
 variable "availability_zone" {
   type        = string
-  description = "AWS availability zone for subnets (e.g., us-east-1a)."
+  description = "Primary AWS availability zone (e.g., us-east-1a)."
+}
+
+variable "availability_zone_b" {
+  type        = string
+  description = "Secondary AWS availability zone for the ALB's second container subnet (e.g., us-east-1b)."
 }
 
 variable "subnet_cidrs" {
   type = object({
-    containerapps = string
-    workload      = string   # FIX: was optional — now required for private endpoint
+    containerapps   = string
+    containerapps_b = string
+    workload        = string
   })
-  description = "CIDR blocks for subnets. Both containerapps and workload are required."
+  description = "CIDR blocks for subnets. containerapps/containerapps_b are the two AZ container subnets required by the ALB; workload hosts the Bedrock VPC endpoint."
 }
 
 variable "log_group_name" {
   type        = string
   description = "Optional override for the CloudWatch log group name."
-  default     = null
-}
-
-variable "repository_name" {
-  type        = string
-  description = "Optional override for the ECR repository name."
   default     = null
 }
 

@@ -3,14 +3,9 @@ output "registry_url" {
   value       = local.registry_url
 }
 
-output "repository_url" {
-  description = "Full ECR repository URL including the repository name."
-  value       = aws_ecr_repository.this.repository_url
-}
-
-output "repository_arn" {
-  description = "ARN of the ECR repository."
-  value       = aws_ecr_repository.this.arn
+output "repository_urls" {
+  description = "Map of repository name to full ECR repository URL."
+  value       = { for k, repo in aws_ecr_repository.this : k => repo.repository_url }
 }
 
 output "pull_role_arn" {

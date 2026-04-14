@@ -2,13 +2,16 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 locals {
-  name         = coalesce(var.repository_name, "${var.project_name}-${var.environment}")
+  prefix       = "${var.project_name}-${var.environment}"
   registry_url = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
 }
 
 resource "aws_ecr_repository" "this" {
-  name                 = local.name
+  for_each = toset(var.repository_names)
+
+  name                 = "${local.prefix}-${each.key}"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
     scan_on_push = true
@@ -26,7 +29,7 @@ resource "aws_ecr_repository" "this" {
 
 # IAM role for ECS tasks to pull images from ECR
 resource "aws_iam_role" "ecr_pull" {
-  name = "${local.name}-ecr-pull"
+  name = "${local.prefix}-ecr-pull"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

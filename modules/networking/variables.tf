@@ -10,7 +10,12 @@ variable "environment" {
 
 variable "availability_zone" {
   type        = string
-  description = "AWS availability zone for subnets (e.g., us-east-1a)."
+  description = "Primary AWS availability zone (e.g., us-east-1a)."
+}
+
+variable "availability_zone_b" {
+  type        = string
+  description = "Secondary AWS availability zone for the second container subnet (e.g., us-east-1b)."
 }
 
 variable "vpc_cidr" {
@@ -20,8 +25,9 @@ variable "vpc_cidr" {
 
 variable "subnet_cidrs" {
   type = object({
-    containerapps = string
-    workload      = optional(string)
+    containerapps   = string
+    containerapps_b = string
+    workload        = optional(string)
   })
-  description = "CIDR blocks for subnets."
+  description = "CIDR blocks for subnets. containerapps and containerapps_b are placed in separate AZs for ALB multi-AZ support."
 }

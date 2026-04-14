@@ -9,8 +9,13 @@ output "vpc_name" {
 }
 
 output "container_subnet_id" {
-  description = "ID of the containers subnet."
+  description = "ID of the primary containers subnet (AZ-a)."
   value       = aws_subnet.containers.id
+}
+
+output "container_subnet_id_b" {
+  description = "ID of the secondary containers subnet (AZ-b), required for ALB multi-AZ."
+  value       = aws_subnet.containers_b.id
 }
 
 output "workload_subnet_id" {

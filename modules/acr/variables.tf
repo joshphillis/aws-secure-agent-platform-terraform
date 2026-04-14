@@ -8,8 +8,7 @@ variable "environment" {
   description = "Environment identifier (dev, prod, etc.)."
 }
 
-variable "repository_name" {
-  type        = string
-  description = "Optional override for the ECR repository name."
-  default     = null
+variable "repository_names" {
+  type        = list(string)
+  description = "List of ECR repository names to create — one per worker plus orchestrator."
 }

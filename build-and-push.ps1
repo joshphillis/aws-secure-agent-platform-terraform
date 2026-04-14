@@ -1,9 +1,20 @@
-# --- FORCE ACR NAME TO BE SET ---
-$AcrName = "aoaidevacraa06.azurecr.io"
+# --- Resolve ECR registry URL from current AWS identity ---
+$AccountId = (aws sts get-caller-identity --query Account --output text)
+$Region    = (aws configure get region)
+$EcrBase   = "$AccountId.dkr.ecr.$Region.amazonaws.com"
 
-Write-Host "Using ACR: [$AcrName]" -ForegroundColor Green
+Write-Host "ECR registry: $EcrBase" -ForegroundColor Green
 
-# --- WORKER LIST ---
+# --- Authenticate Docker to ECR ---
+Write-Host "Logging in to ECR..." -ForegroundColor Cyan
+$token = aws ecr get-login-password --region $Region
+docker login --username AWS --password $token $EcrBase
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ECR login failed" -ForegroundColor Red
+    exit 1
+}
+
+# --- Worker list ---
 $workers = @(
     "summaries-worker"
     "classify-worker"
@@ -12,23 +23,14 @@ $workers = @(
     "translate-worker"
 )
 
-Write-Host "Workers count: $($workers.Count)"
-foreach ($worker in $workers) { Write-Host "Worker=[$worker]" }
-
 Write-Host "=== Building and pushing worker images ===" -ForegroundColor Cyan
 
 foreach ($worker in $workers) {
+    $path  = "workers/$worker"
+    $image = "$EcrBase/secure-agent-dev-${worker}:latest"
 
-    $path = "workers/$worker"
-
-    # 🔍 DIAGNOSTIC LINE ADDED HERE
-    Write-Host "RAW IMAGE LINE: [$AcrName/$worker:latest]"
-
-    $image = $AcrName + "/" + $worker + ":latest"
-
-    Write-Host "`n--- Processing $worker ---" -ForegroundColor Yellow
-    Write-Host "Image tag: $image" -ForegroundColor DarkGray
-    Write-Host "DEBUG: worker=[$worker] image=[$image]"
+    Write-Host "`n--- $worker ---" -ForegroundColor Yellow
+    Write-Host "Image: $image" -ForegroundColor DarkGray
 
     if (-Not (Test-Path $path)) {
         Write-Host "Directory not found: $path" -ForegroundColor Red
@@ -38,25 +40,52 @@ foreach ($worker in $workers) {
     # Ensure start.sh is executable
     $startScript = Join-Path $path "start.sh"
     if (Test-Path $startScript) {
-        Write-Host "Ensuring start.sh is executable..."
         git update-index --chmod=+x $startScript
     }
 
-    Write-Host "Building image: $image" -ForegroundColor Cyan
     docker build -t $image $path
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed for $worker" -ForegroundColor Red
         exit 1
     }
 
-    Write-Host "Pushing image: $image" -ForegroundColor Cyan
     docker push $image
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Push failed for $worker" -ForegroundColor Red
         exit 1
     }
 
-    Write-Host "$worker complete." -ForegroundColor Green
+    Write-Host "$worker done." -ForegroundColor Green
 }
 
-Write-Host "`n=== All worker images built and pushed successfully ===" -ForegroundColor Green
+# --- Orchestrator ---
+Write-Host "`n=== Building and pushing orchestrator image ===" -ForegroundColor Cyan
+
+$orchImage = "$EcrBase/secure-agent-dev-orchestrator:v7"
+Write-Host "Image: $orchImage" -ForegroundColor DarkGray
+
+if (-Not (Test-Path "orchestrator")) {
+    Write-Host "Directory not found: orchestrator" -ForegroundColor Red
+    exit 1
+}
+
+$orchStart = "orchestrator/start.sh"
+if (Test-Path $orchStart) {
+    git update-index --chmod=+x $orchStart
+}
+
+docker build -t $orchImage orchestrator
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Build failed for orchestrator" -ForegroundColor Red
+    exit 1
+}
+
+docker push $orchImage
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Push failed for orchestrator" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "orchestrator done." -ForegroundColor Green
+
+Write-Host "`n=== All images built and pushed successfully ===" -ForegroundColor Green

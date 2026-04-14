@@ -6,12 +6,13 @@ module "resource_group" {
 }
 
 module "networking" {
-  source            = "./modules/networking"
-  vpc_cidr          = var.vpc_cidr
-  subnet_cidrs      = var.subnet_cidrs
-  availability_zone = var.availability_zone
-  project_name      = var.project_name
-  environment       = var.environment
+  source              = "./modules/networking"
+  vpc_cidr            = var.vpc_cidr
+  subnet_cidrs        = var.subnet_cidrs
+  availability_zone   = var.availability_zone
+  availability_zone_b = var.availability_zone_b
+  project_name        = var.project_name
+  environment         = var.environment
 }
 
 module "log_analytics" {
@@ -22,10 +23,10 @@ module "log_analytics" {
 }
 
 module "ecr" {
-  source          = "./modules/acr"
-  repository_name = var.repository_name
-  project_name    = var.project_name
-  environment     = var.environment
+  source           = "./modules/acr"
+  repository_names = concat([for app in var.apps : app.name], ["orchestrator"])
+  project_name     = var.project_name
+  environment      = var.environment
 }
 
 module "key_vault" {
@@ -60,7 +61,7 @@ module "container_apps" {
 
   cluster_name   = module.container_apps_env.cluster_name
   vpc_id         = module.networking.vpc_id
-  subnet_ids     = [module.networking.container_subnet_id]
+  subnet_ids     = [module.networking.container_subnet_id, module.networking.container_subnet_id_b]
   namespace_id   = module.container_apps_env.namespace_id
   namespace_name = module.container_apps_env.namespace_name
 
@@ -71,5 +72,5 @@ module "container_apps" {
   model_id         = module.openai.model_id
 
   apps               = var.apps
-  orchestrator_image = "${module.ecr.registry_url}/orchestrator:v7"
+  orchestrator_image = "851725205521.dkr.ecr.us-east-1.amazonaws.com/secure-agent-dev-orchestrator:v7"
 }

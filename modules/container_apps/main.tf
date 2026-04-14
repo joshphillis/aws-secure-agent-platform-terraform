@@ -35,6 +35,33 @@ resource "aws_iam_role_policy_attachment" "execution_ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+resource "aws_iam_role_policy" "execution_ecr_pull" {
+  name = "${local.prefix}-ecr-pull"
+  role = aws_iam_role.execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ECRPullFromAccount"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+        Resource = "arn:aws:ecr:${data.aws_region.current.name}:851725205521:repository/*"
+      },
+      {
+        Sid      = "ECRAuthToken"
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # ─── Security Groups ────────────────────────────────────────────────────────────
 
 resource "aws_security_group" "alb" {
