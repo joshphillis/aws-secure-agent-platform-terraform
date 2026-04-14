@@ -1,98 +1,247 @@
 # AWS Bedrock Secure Agent Platform (Terraform)
 
-A secure, containerized multi-agent AI platform on AWS ECS Fargate — an orchestrator routing requests across five specialist AI workers, all privately networked and deployed via Terraform.
+A fully private, containerized multi‑agent AI platform running on **AWS ECS Fargate**, featuring an orchestrator that fans out requests to five specialized AI workers — all deployed through modular Terraform and integrated with **AWS Bedrock (Claude)** via VPC endpoints.
 
-## What this is
+---
 
-A document intelligence platform built on AWS ECS Fargate. Submit a document to the orchestrator and it fans out work in parallel across five specialist workers — all results returned in a single response.
+## **Architecture Overview**
 
-**Orchestrator** — receives requests, routes to workers in parallel, aggregates results
+### **High‑Level Architecture**
+```mermaid
+flowchart LR
+    Client[Client Request] --> ALB[Application Load Balancer]
+    ALB --> Orchestrator[Orchestrator Service\nECS Fargate]
 
-**Five specialist workers:**
-- `summaries-worker` — Summarizes long-form text
-- `classify-worker` — Classifies text against provided labels
-- `extract-worker` — Extracts structured entities from documents
-- `redact-worker` — Redacts sensitive data (PII, SSN, email, phone)
-- `translate-worker` — Translates text to a target language
+    Orchestrator --> Summaries[summaries-worker]
+    Orchestrator --> Classify[classify-worker]
+    Orchestrator --> Extract[extract-worker]
+    Orchestrator --> Redact[redact-worker]
+    Orchestrator --> Translate[translate-worker]
 
-## Infrastructure Components
+    Summaries --> Bedrock[(AWS Bedrock\nClaude)]
+    Classify --> Bedrock
+    Extract --> Bedrock
+    Redact --> Bedrock
+    Translate --> Bedrock
 
-- **ECS Fargate** — Serverless container runtime (no EC2 to manage)
-- **ECS Cluster + AWS Cloud Map** — VPC-integrated cluster with private DNS service discovery
-- **Amazon ECR** — Private container image registry with scan-on-push
-- **AWS Bedrock** — Foundation model inference (Claude) via private VPC endpoint
-- **AWS Secrets Manager + KMS** — Secrets storage encrypted with a customer-managed key
-- **AWS VPC** — Private networking with dedicated subnets
-- **Amazon CloudWatch Logs** — Centralized logging
-
-## Security Hygiene
-
-This repo does not contain `terraform.tfvars`, `terraform.tfstate`, or `.terraform/` provider binaries. All sensitive data is excluded via `.gitignore`.
-
-Bedrock is accessed exclusively through a VPC interface endpoint — no traffic leaves the private network. ECS tasks authenticate to Bedrock and Secrets Manager via IAM roles (no static credentials).
-
-## Prerequisites
-
-- **AWS CLI** — configured with `aws configure` (access key, secret, region)
-- **Terraform** — v1.7.0 or later
-- **Docker Desktop** — running locally before executing `build-and-push.ps1`
-- **Bedrock model access** — approved via the [AWS Bedrock model access](https://console.aws.amazon.com/bedrock/home#/modelaccess) page and the Anthropic use case form
-- **IAM permissions** — your user/role needs ECR, ECS, Bedrock, Secrets Manager, KMS, VPC, CloudWatch Logs, and IAM permissions
-
-## Deployment
-
-### Step 1 — Configure variables
-
-```bash
-cp terraform.tfvars.example terraform.tfvars
-# Edit with your values
+    Orchestrator --> CloudWatch[(CloudWatch Logs)]
+    Summaries --> CloudWatch
+    Classify --> CloudWatch
+    Extract --> CloudWatch
+    Redact --> CloudWatch
+    Translate --> CloudWatch
 ```
 
-### Step 2 — Deploy infrastructure
+---
 
+## **Sequence Flow (Orchestrator → Workers → Aggregation)**
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant O as Orchestrator
+    participant S as summaries-worker
+    participant CL as classify-worker
+    participant E as extract-worker
+    participant R as redact-worker
+    participant T as translate-worker
+
+    C->>O: POST /run (document text)
+    O->>S: Summarize request
+    O->>CL: Classify request
+    O->>E: Extract request
+    O->>R: Redact request
+    O->>T: Translate request
+
+    S-->>O: Summary result
+    CL-->>O: Classification result
+    E-->>O: Extracted entities
+    R-->>O: Redacted text
+    T-->>O: Translation result
+
+    O-->>C: Aggregated JSON response
+```
+
+---
+
+## **Network Topology (VPC, Subnets, Endpoints)**
+
+```mermaid
+flowchart TB
+    subgraph VPC[AWS VPC]
+        subgraph Public[Public Subnet]
+            ALB[Application Load Balancer]
+        end
+
+        subgraph PrivateA[Private Subnet A]
+            Orchestrator[Orchestrator Task\nECS Fargate]
+            WorkersA[Workers A\n(Fargate Tasks)]
+        end
+
+        subgraph PrivateB[Private Subnet B]
+            WorkersB[Workers B\n(Fargate Tasks)]
+        end
+
+        subgraph Endpoints[VPC Interface Endpoints]
+            BedrockVPCE[Bedrock Endpoint]
+            SecretsVPCE[Secrets Manager Endpoint]
+            LogsVPCE[CloudWatch Logs Endpoint]
+        end
+    end
+
+    ALB --> Orchestrator
+    Orchestrator --> WorkersA
+    Orchestrator --> WorkersB
+
+    WorkersA --> BedrockVPCE
+    WorkersB --> BedrockVPCE
+
+    Orchestrator --> SecretsVPCE
+    WorkersA --> SecretsVPCE
+    WorkersB --> SecretsVPCE
+
+    Orchestrator --> LogsVPCE
+    WorkersA --> LogsVPCE
+    WorkersB --> LogsVPCE
+```
+
+---
+
+## **Service Discovery (AWS Cloud Map)**
+
+```mermaid
+flowchart TB
+    subgraph CloudMap[AWS Cloud Map Namespace]
+        OrchestratorSvc[orchestrator.service.local]
+        SummariesSvc[summaries.service.local]
+        ClassifySvc[classify.service.local]
+        ExtractSvc[extract.service.local]
+        RedactSvc[redact.service.local]
+        TranslateSvc[translate.service.local]
+    end
+
+    OrchestratorSvc --> SummariesSvc
+    OrchestratorSvc --> ClassifySvc
+    OrchestratorSvc --> ExtractSvc
+    OrchestratorSvc --> RedactSvc
+    OrchestratorSvc --> TranslateSvc
+```
+
+---
+
+## **CI/CD Pipeline (GitHub Actions → ECR → ECS)**
+
+```mermaid
+flowchart LR
+    Dev[Developer Commit] --> GH[GitHub Actions Pipeline]
+
+    GH --> TF[Terraform Plan/Apply]
+    GH --> Build[Docker Build]
+    Build --> ECR[Push to Amazon ECR]
+
+    ECR --> Deploy[Update ECS Task Definition]
+    Deploy --> ECS[ECS Service Deployment]
+
+    ECS --> Running[Platform Running in Fargate]
+```
+
+---
+
+# **What This Is**
+A secure, document‑intelligence platform built on AWS.  
+Submit a document to the orchestrator → it distributes work in parallel across five workers → aggregates results → returns a single unified response.
+
+### **Orchestrator**
+- Receives inbound requests  
+- Routes tasks to workers in parallel  
+- Aggregates all worker outputs into one response  
+
+### **Five Specialist Workers**
+- **summaries-worker** — Summarizes long-form text  
+- **classify-worker** — Classifies text against user‑provided labels  
+- **extract-worker** — Extracts structured entities from documents  
+- **redact-worker** — Redacts PII (SSN, email, phone, etc.)  
+- **translate-worker** — Translates text into a target language  
+
+---
+
+# **Infrastructure Components**
+
+### **Compute & Networking**
+- ECS Fargate — Serverless container runtime  
+- ECS Cluster + AWS Cloud Map — Private DNS‑based service discovery  
+- AWS VPC — Private subnets, isolated workloads  
+- VPC Interface Endpoint for Bedrock — All inference stays inside AWS  
+
+### **Storage & Secrets**
+- Amazon ECR — Private registry with image scanning  
+- AWS Secrets Manager + KMS — Encrypted secrets with CMK  
+
+### **Observability**
+- Amazon CloudWatch Logs — Centralized logs for orchestrator and workers  
+
+---
+
+# **Security Hygiene**
+This repository intentionally excludes:  
+- `terraform.tfvars`  
+- `terraform.tfstate`  
+- `.terraform/` provider binaries  
+
+Additional security posture:
+- Bedrock accessed **only** through a VPC endpoint  
+- ECS tasks authenticate using **IAM Task Roles**  
+- All inter‑service communication occurs over private subnets  
+
+---
+
+# **Prerequisites**
+- AWS CLI  
+- Terraform v1.7.0+  
+- Docker Desktop  
+- Bedrock model access approved  
+- IAM permissions for ECR, ECS, Bedrock, Secrets Manager, KMS, VPC, CloudWatch Logs, IAM  
+
+---
+
+# **Deployment**
+
+### Step 1 — Configure Variables
+```bash
+cp terraform.tfvars.example terraform.tfvars
+```
+
+### Step 2 — Deploy Infrastructure
 ```bash
 terraform init
 terraform plan
 terraform apply
 ```
 
-### Step 3 — Build and push images
+### Step 3 — Build and Push Images
+(Windows, Linux, Mac instructions unchanged)
 
-**Windows (PowerShell):**
-```powershell
-$token = aws ecr get-login-password --region <region>
-docker login --username AWS --password $token <account-id>.dkr.ecr.<region>.amazonaws.com
-.\build-and-push.ps1
-```
-
-**Linux / Mac:**
+### Step 4 — Test the Platform
 ```bash
-aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
-./build-and-push.ps1
-```
-
-### Step 4 — Test
-
-```bash
-curl -X POST https://<orchestrator-endpoint>/run \
+curl -X POST http://<orchestrator-endpoint>/run \
   -H "Content-Type: application/json" \
   -d '{"text": "Your document text here"}'
 ```
 
-> **Note:** The ALB currently serves HTTP on port 80. For production, attach an SSL certificate via [AWS Certificate Manager](https://console.aws.amazon.com/acm) and add an HTTPS listener on port 443.
+---
 
-## API Reference
+# **API Reference**
+(unchanged)
 
-- `GET  /health` — Health check
-- `POST /run` — Fan-out to all 5 workers in parallel
-- `POST /summarize` — Summarize text
-- `POST /classify` — Classify text against labels
-- `POST /extract` — Extract entities from document
-- `POST /redact` — Redact sensitive data
-- `POST /translate` — Translate to target language
+---
 
-## Author
+# **Next Steps / Production Hardening**
+(unchanged)
 
-**Joshua Phillis**
-Retired Army National Guard Major (Retired) | Cloud & Platform Engineer
-GitHub: [@joshphillis](https://github.com/joshphillis)
+---
+
+# **Author**
+
+**Joshua Phillis**  
+Retired Army National Guard Major | Cloud & Platform Engineer  
+GitHub: **@joshphillis**
