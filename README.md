@@ -219,14 +219,19 @@ terraform apply
 ```
 
 ### Step 3 — Build and Push Images
+
 **Windows (PowerShell):**
+```powershell
 $token = aws ecr get-login-password --region <region>
 docker login --username AWS --password $token <account-id>.dkr.ecr.<region>.amazonaws.com
 .\build-and-push.ps1
+```
 
 **Linux / Mac:**
+```bash
 aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
 ./build-and-push.ps1
+```
 
 ### Step 4 — Test the Platform
 ```bash
@@ -237,12 +242,27 @@ curl -X POST http://<orchestrator-endpoint>/run \
 ---
 
 # **API Reference**
-(unchanged)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check — returns `200 OK` when the service is up |
+| `POST` | `/run` | Fan-out to all 5 workers in parallel, returns aggregated results |
+| `POST` | `/summarize` | Summarize long-form text |
+| `POST` | `/classify` | Classify text against provided labels |
+| `POST` | `/extract` | Extract structured entities from a document |
+| `POST` | `/redact` | Redact PII (SSN, email, phone, etc.) |
+| `POST` | `/translate` | Translate text to a target language |
+
+All `POST` endpoints accept `application/json` with a `text` field (and optionally `target_language` for `/translate`, `labels` for `/classify`).
 
 ---
 
 # **Next Steps / Production Hardening**
-(unchanged)
+
+- **HTTPS / TLS** — Provision a certificate in [AWS Certificate Manager](https://console.aws.amazon.com/acm), attach it to the ALB, add an HTTPS listener on port 443, and redirect port 80 → 443
+- **Custom domain** — Create a Route 53 hosted zone, add an A-record alias pointing to the ALB DNS name, and reference it in your ACM certificate
+- **CI/CD pipeline** — Wire GitHub Actions (or AWS CodePipeline) to build and push images to ECR on merge to `main`, then trigger an ECS rolling deployment via `aws ecs update-service --force-new-deployment`
+- **Production IAM hardening** — Replace broad managed policies with least-privilege inline policies scoped to specific ECR repositories, ECS clusters, and Secrets Manager ARNs; enable IAM Access Analyzer to surface over-permissioned roles
 
 ---
 
