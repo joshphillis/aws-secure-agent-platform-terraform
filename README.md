@@ -219,7 +219,14 @@ terraform apply
 ```
 
 ### Step 3 — Build and Push Images
-(Windows, Linux, Mac instructions unchanged)
+**Windows (PowerShell):**
+$token = aws ecr get-login-password --region <region>
+docker login --username AWS --password $token <account-id>.dkr.ecr.<region>.amazonaws.com
+.\build-and-push.ps1
+
+**Linux / Mac:**
+aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
+./build-and-push.ps1
 
 ### Step 4 — Test the Platform
 ```bash
@@ -227,7 +234,6 @@ curl -X POST http://<orchestrator-endpoint>/run \
   -H "Content-Type: application/json" \
   -d '{"text": "Your document text here"}'
 ```
-
 ---
 
 # **API Reference**
