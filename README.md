@@ -31,6 +31,14 @@ This repo does not contain `terraform.tfvars`, `terraform.tfstate`, or `.terrafo
 
 Bedrock is accessed exclusively through a VPC interface endpoint — no traffic leaves the private network. ECS tasks authenticate to Bedrock and Secrets Manager via IAM roles (no static credentials).
 
+## Prerequisites
+
+- **AWS CLI** — configured with `aws configure` (access key, secret, region)
+- **Terraform** — v1.7.0 or later
+- **Docker Desktop** — running locally before executing `build-and-push.ps1`
+- **Bedrock model access** — approved via the [AWS Bedrock model access](https://console.aws.amazon.com/bedrock/home#/modelaccess) page and the Anthropic use case form
+- **IAM permissions** — your user/role needs ECR, ECS, Bedrock, Secrets Manager, KMS, VPC, CloudWatch Logs, and IAM permissions
+
 ## Deployment
 
 ### Step 1 — Configure variables
@@ -50,9 +58,17 @@ terraform apply
 
 ### Step 3 — Build and push images
 
+**Windows (PowerShell):**
 ```powershell
-aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
+$token = aws ecr get-login-password --region <region>
+docker login --username AWS --password $token <account-id>.dkr.ecr.<region>.amazonaws.com
 .\build-and-push.ps1
+```
+
+**Linux / Mac:**
+```bash
+aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
+./build-and-push.ps1
 ```
 
 ### Step 4 — Test
@@ -62,6 +78,8 @@ curl -X POST https://<orchestrator-endpoint>/run \
   -H "Content-Type: application/json" \
   -d '{"text": "Your document text here"}'
 ```
+
+> **Note:** The ALB currently serves HTTP on port 80. For production, attach an SSL certificate via [AWS Certificate Manager](https://console.aws.amazon.com/acm) and add an HTTPS listener on port 443.
 
 ## API Reference
 
