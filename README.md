@@ -10,7 +10,7 @@ A fully private, containerized multi‑agent AI platform running on **AWS ECS Fa
 ```mermaid
 flowchart LR
     Client[Client Request] --> ALB[Application Load Balancer]
-    ALB --> Orchestrator[Orchestrator Service\nECS Fargate]
+    ALB --> Orchestrator[Orchestrator Service<br/>ECS Fargate]
 
     Orchestrator --> Summaries[summaries-worker]
     Orchestrator --> Classify[classify-worker]
@@ -18,7 +18,7 @@ flowchart LR
     Orchestrator --> Redact[redact-worker]
     Orchestrator --> Translate[translate-worker]
 
-    Summaries --> Bedrock[(AWS Bedrock\nClaude)]
+    Summaries --> Bedrock[(AWS Bedrock<br/>Claude)]
     Classify --> Bedrock
     Extract --> Bedrock
     Redact --> Bedrock
@@ -74,12 +74,12 @@ flowchart TB
         end
 
         subgraph PrivateA[Private Subnet A]
-            Orchestrator[Orchestrator Task\nECS Fargate]
-            WorkersA[Workers A\n(Fargate Tasks)]
+            Orchestrator[Orchestrator Task ECS Fargate]
+            WorkersA[Workers A Fargate Tasks]
         end
 
         subgraph PrivateB[Private Subnet B]
-            WorkersB[Workers B\n(Fargate Tasks)]
+            WorkersB[Workers B Fargate Tasks]
         end
 
         subgraph Endpoints[VPC Interface Endpoints]
